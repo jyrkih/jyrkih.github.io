@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Suomi Matkakohteet</title>
+    <meta charset="utf-8"/>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.css"/>
+    <link href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/leaflet.awesome-markers.css">
+</head>
+<body>
+<div style="width:100%; height:800px" id="map"></div>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.0/jquery.min.js"></script>
+<script src="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.js"></script>
+<script src="http://maps.google.com/maps/api/js?v=3&sensor=false"></script>
+<script src="js/Google.js"></script>
+<script src="js/Panoramio.js"></script>
+<script src="js/leaflet.awesome-markers.min.js"></script>
+<script>
+
+    var map = L.map('map').setView([60.998210, 24.375916], 10);
+    var lc;
+
+    var mjrekiSet = {
+        layer: undefined,
+        geojson: ['inspire/MJREKI_INSPIRE_ALUE.json'], //, 'inspire/MJREKI_INSPIRE_PISTE.json'],
+        name: 'Muinaisjäännökset',
+        show: false,
+        data: [],
+        minZoom:10,
+        style: {
+            weight: 2,
+            color: '#0000ff'
+        }
+    };
+
+    var rkySet = {
+        layer: undefined,
+        geojson: ['inspire/RKY_INSPIRE_ALUE.json', 'inspire/RKY_INSPIRE_VIIVA.json', 'inspire/RKY_INSPIRE_PISTE.json'],
+        name: 'Rakennetut kulttuuriympäristöt',
+        show: false,
+        data: [],
+        minZoom:7,
+        style: {
+            weight: 2,
+            color: '#ff0000'
+        }
+    };
+
+    var rpSet = {
+        layer: undefined,
+        geojson: ['inspire/RAKENNUSPERINTO_INSPIRE_ALUE.json', 'inspire/RAKENNUSPERINTO_INSPIRE_PISTE.json'],
+        name: 'Suojellut rakennukset',
+        show: false,
+        data: [],
+        minZoom:9,
+        style: {
+            weight: 2,
+            color: '#00ff00'
+        }
+    };
+
+    var urSet = {
+        layer: undefined,
+        geojson: ['http:'],
+        name: 'Suojellut rakennukset',
+        show: false,
+        data: [],
+        minZoom:9,
+        style: {
+            weight: 2,
+            color: '#00ff00'
+        }
+    };
+
+    var json_uri = "//spreadsheets.google.com/feeds/list/0AtSvRKpOIo3OdDZRdk01MTVzMUs2THotdlc0emtMaHc/od6/public/values?alt=json";
+
+
+    var StarIcon = L.Icon.extend({
+        options: {
+            iconUrl: 'images/hv.jpg',
+            //shadowUrl: '/~jyrki/suomi/css/images/markers-shadow.png',
+            iconSize: [20, 20],
+            shadowSize: [35, 16],
+            iconAnchor: [1, 10],
+            shadowAnchor: [4, 62],
+            popupAnchor: [-3, 0]
+        }
+    });
+
+    var KirkkoIcon = L.Icon.extend({
+        options: {
+            iconUrl: 'images/kirkko.jpg',
+            iconSize: [20, 20],
+            shadowSize: [35, 16],
+            iconAnchor: [1, 10],
+            shadowAnchor: [4, 62],
+            popupAnchor: [-3, 0]
+        }
+    });
+
+    function createLayer(target) {
+
+        var mz = map.getZoom();
+
+
+
+
+        if(target.layer) {
+            if (lc) {
+                lc.removeLayer(target.layer);
+            }
+
+            map.removeLayer(target.layer);
+            target.layer = undefined;
+
+        }
+
+        if ( map.getZoom() < target.minZoom) {
+            return;
+        }
+        target.layer = L.geoJson(target.data, {
+            pointToLayer: function (feature, latlng) {
+                /*if (mz>9) {
+                 var redMarker = L.AwesomeMarkers.icon({
+                 icon: 'star',
+                 prefix:'fa',
+                 markerColor: 'red'
+                 });
+                 return L.marker(latlng, {icon: redMarker});
+                 } else {
+                 return L.circleMarker(latlng, {radius:5});
+                 }*/
+
+                if (feature.properties.siteName.toLowerCase().indexOf("kirkko") > -1) {
+                    return L.marker(latlng, {icon: new KirkkoIcon()});
+                }
+                return L.marker(latlng, {icon: new StarIcon()});
+                //
+            },
+
+            onEachFeature: function (feature, layer) {
+                layer.bindPopup(feature.properties.siteName);
+            },
+            style: function(feature) {
+                return {weight: 2}
+            },
+            filter: function (feature, layer) {
+                var mb = map.getBounds();
+                if (feature.geometry.type == "Point" && feature.geometry.coordinates) {
+                    var ll = L.latLng(feature.geometry.coordinates[1], feature.geometry.coordinates[0]);
+                    if (ll) {
+                        return mb.contains(ll);
+                    } else {
+                        console.log(feature.geometry);
+                        return false;
+                    }
+
+                } else if (feature.geometry.type == "Polygon" || feature.geometry.type == "MultiPolygon") {
+                    var lls = [];
+                    for(i=0;i<feature.geometry.coordinates[0].length;i++) {
+                        lls.push(feature.geometry.coordinates[0][i][1],feature.geometry.coordinates[0][i][0]);
+                    }
+
+                    var ll = L.latLng(lls);
+                    if (ll) {
+                        return mb.contains(ll);
+                    } else {
+                        return false;
+                    }
+                } else { //if (feature.geometry.type == "Polygon") {
+                    console.log(feature.geometry);
+                    return true;
+                }
+            }
+        }).addTo(map);
+        if (target.style)
+            target.layer.setStyle(target.style);
+        if (lc) {
+            lc.addOverlay(target.layer, target.name);
+        }
+
+    }
+
+    function show(target) {
+        if ((target == undefined || target == mjrekiSet) && mjrekiSet.show == true)
+            createLayer(mjrekiSet);
+        if ((target == undefined || target == rpSet) && rpSet.show == true)
+            createLayer(rpSet);
+        if ((target == undefined || target == rkySet) && rkySet.show == true)
+            createLayer(rkySet);
+    }
+
+
+    map.on('zoomend', function () {
+        show();
+    });
+
+    map.on('moveend', function () {
+        show();
+    });
+
+    map.on('overlayremove', function (e) {
+        if (e.name == rpSet.name) {
+            rpSet.show = false;
+        } else if (e.name == mjrekiSet.name) {
+            mjrekiSet.show = false;
+        } else if (e.name == rkySet.name) {
+            rkySet.show = false;
+        }
+    });
+
+    map.on('overlayadd', function (e) {
+        if (e.name == rpSet.name) {
+            rpSet.show = true;
+        } else if (e.name == mjrekiSet.name) {
+            mjrekiSet.show = true;
+        } else if (e.name == rkySet.name) {
+            rkySet.show = true;
+        }
+    });
+
+    var styles = [
+        {
+            featureType: 'all',
+            stylers: []
+        }
+    ];
+
+    var ggl = new L.Google('ROADMAP', {
+        mapOptions: {
+            styles: styles
+        }
+    });
+    map.addLayer(ggl);
+    //map.addLayer(ocm);
+    lc = new L.Control.Layers({'Google': ggl}, {});
+
+    createLayer(mjrekiSet);
+
+    function processSet(set) {
+        if (set && set.geojson)
+            set.geojson.forEach(function (gj) {
+                $.getJSON(gj, function (data) {
+                    set.data.push(data);
+                    set.show = true;
+                    createLayer(set);
+                });
+            });
+    }
+    processSet(mjrekiSet);
+    processSet(rkySet);
+    processSet(rpSet);
+
+    map.addControl(lc);
+
+
+</script>
+</body>
+</html>
